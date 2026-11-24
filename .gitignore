@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+.DS_Store
+# Registros de participantes: no se suben al repositorio (privacidad)
+registros/
+datos/
+Datos/
+resultados/
+*.xlsx
