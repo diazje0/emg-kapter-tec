@@ -12,7 +12,7 @@ Tecnológico de Monterrey). Registra la abducción de cadera midiendo el **tenso
 | Página | Función |
 |---|---|
 | 📂 **Procesamiento** | Lee los 7 CSV de una sesión (osciloscopio o ESP32) y calcula RMS, frecuencia mediana (MDF), tiempo de activación, latencia y estadística. Muestra gráficas interactivas y exporta todo a Excel. |
-| 📡 **En vivo (ESP32)** | Recibe la señal de la ESP32 por USB o Bluetooth, la grafica en tiempo real, envía el pitido de inicio y graba cada toma ya con el nombre que usa la app. Incluye un **simulador** para probar sin hardware. |
+| 📡 **En vivo (ESP32)** | Recibe la señal de la ESP32-C3 por USB, la grafica en tiempo real, envía el pitido de inicio y graba cada toma ya con el nombre que usa la app. Incluye un **simulador** para probar sin hardware. |
 | 🌡️ **Termografía** | Captura las temperaturas por región (T0–T2) y las compara con el RMS y la MDF del TFL. |
 
 ## Instalación
@@ -78,18 +78,22 @@ Mismo algoritmo validado en MATLAB (los resultados coinciden con `procesamiento_
 
 ## Hardware
 
-Firmware en [`firmware/esp32_emg/esp32_emg.ino`](firmware/esp32_emg/esp32_emg.ino) para la **Adafruit HUZZAH32**
-(Arduino IDE, core *esp32 by Espressif* 3.x):
+Firmware en [`firmware/esp32_emg/esp32_emg.ino`](firmware/esp32_emg/esp32_emg.ino) para la **ESP32-C3**
+(Arduino IDE, core *esp32 by Espressif* 3.x, placa *ESP32C3 Dev Module*, **USB CDC On Boot: Enabled**):
 
 | Señal | Pin |
 |---|---|
-| Salida canal TFL | A2 (GPIO 34) |
-| Salida canal aductor | A3 (GPIO 39) |
-| Buzzer activo 3.3 V | GPIO 21 |
+| Salida canal TFL | GPIO 0 (ADC1) |
+| Salida canal aductor | GPIO 1 (ADC1) |
+| Buzzer activo 3.3 V | GPIO 10 |
 | GND | GND2 (lado de salida del ISO124) |
 
-Muestrea 2 canales a 2 kHz y envía por USB (921 600 baudios) y Bluetooth (`EMG_KapterTEC`).
-Comandos: `S` iniciar, `P` pausar, `B` pitido + marca.
+Evitar GPIO 2, 8 y 9 (arranque), 18–19 (USB), 20–21 (UART) y GPIO 5 (ADC2).
+Muestrea 2 canales a 2 kHz y envía por el USB nativo. Comandos: `S` iniciar, `P` pausar, `B` pitido + marca.
+
+**Rango del ADC:** con atenuación de 11 dB el C3 mide bien de ~0 a ~2.5 V. Si la salida del circuito está centrada
+en 1.65 V solo quedan ~0.85 V hacia arriba; conviene centrarla en ~1.25 V o limitar la ganancia.
+El C3 solo tiene Bluetooth LE (no Bluetooth clásico), así que por ahora la transmisión es por USB.
 
 ⚠️ **Seguridad:** el circuito del lado del paciente funciona solo con baterías. Nunca conecten la ESP32, una
 computadora enchufada a la pared, el osciloscopio o el generador al lado del paciente (GND1) mientras alguien

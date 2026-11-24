@@ -12,14 +12,14 @@ CARPETA = Path(__file__).resolve().parent.parent / "registros"
 
 st.title("📡 Señal en vivo (ESP32)")
 st.caption("Funciona cuando la app corre en **tu computadora** (`streamlit run app.py`), con la ESP32 conectada por USB "
-           "o emparejada por Bluetooth (aparece como un puerto COM).")
+           "(aparece como un puerto COM en Windows o /dev/ttyACM… en Mac/Linux).")
 
 rx: Receptor | None = st.session_state.get("rx")
 
 # ------------------------------------------------------------------ conexión
 with st.sidebar:
     st.header("Conexión")
-    modo = st.radio("Fuente", ["ESP32 (puerto serie / Bluetooth)", "Simulador (sin hardware)"])
+    modo = st.radio("Fuente", ["ESP32-C3 (USB)", "Simulador (sin hardware)"])
     puerto = None
     if modo.startswith("ESP32"):
         try:
@@ -28,9 +28,9 @@ with st.sidebar:
         except Exception:
             puertos = []
         puerto = st.selectbox("Puerto", puertos or ["(no se encontraron puertos)"])
-        baudios = st.selectbox("Velocidad (USB)", [921600, 115200], help="Por Bluetooth la velocidad no importa.")
+        baudios = st.selectbox("Velocidad (USB)", [921600, 115200], help="Con el USB nativo del ESP32-C3 la velocidad no importa.")
     seg_vista = st.slider("Segundos en pantalla", 2, 10, 5)
-    escala = st.slider("Escala vertical (± mV en el ADC)", 100, 1650, 800, 50)
+    escala = st.slider("Escala vertical (± mV en el ADC)", 100, 1300, 800, 50)
 
     c1, c2 = st.columns(2)
     if c1.button("Conectar", type="primary", disabled=bool(rx and rx.activo), use_container_width=True):
@@ -94,9 +94,10 @@ def vista():
     t, d = t[sel], d[sel]
     paso = max(1, len(t) // 4000)
     fs = 1 / np.median(np.diff(t)) if len(t) > 2 else 0
+    offset = np.median(d[:, 1:3], axis=0)          # offset real de cada canal
     fig = go.Figure()
     for j, (nombre, color) in enumerate((("TFL", "#B22222"), ("Aductor", "#1F3864")), start=1):
-        fig.add_scatter(x=t[::paso], y=d[::paso, j] - 1650, mode="lines",
+        fig.add_scatter(x=t[::paso], y=d[::paso, j] - offset[j - 1], mode="lines",
                         line=dict(color=color, width=1), name=nombre, yaxis=f"y{'' if j == 1 else 2}")
     for tm in t[d[:, 3] == 1]:
         fig.add_vline(x=tm, line=dict(color="#2E7D32", dash="dash"))
@@ -108,13 +109,13 @@ def vista():
     st.plotly_chart(fig, use_container_width=True, key="vivo")
     v = d[:, 1:3]
     rms = np.sqrt(np.mean((v[-int(max(fs, 1) * 0.5):] - v.mean(axis=0)) ** 2, axis=0))
-    satur = (v.min() < 100) or (v.max() > 3200)
+    satur = (v.min() < 100) or (v.max() > 2450)
     c = st.columns(3)
     c[0].metric("RMS TFL (últimos 0.5 s, mV ADC)", f"{rms[0]:.0f}")
     c[1].metric("RMS aductor (últimos 0.5 s, mV ADC)", f"{rms[1]:.0f}")
     c[2].metric("Muestreo", f"{fs:.0f} Hz")
     if satur:
-        st.warning("La señal llega a los límites del ADC (saturación): baja la ganancia del potenciómetro.", icon="⚠️")
+        st.warning("La señal llega a los límites del ADC del ESP32-C3 (≈0–2.5 V): baja la ganancia o ajusta el offset.", icon="⚠️")
 
 
 vista()

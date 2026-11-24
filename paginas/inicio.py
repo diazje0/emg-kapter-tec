@@ -11,7 +11,7 @@ Esta aplicación procesa y visualiza las señales de electromiografía de superf
 | Página | Para qué sirve |
 |---|---|
 | 📂 **Procesamiento** | Sube los 7 CSV de una sesión (osciloscopio o ESP32) y obtén RMS, frecuencia mediana, tiempo de activación, latencia y estadística, con gráficas y tablas descargables. |
-| 📡 **En vivo (ESP32)** | Conecta la ESP32 por USB o Bluetooth, mira la señal en tiempo real, marca el inicio de cada contracción con el pitido y graba cada toma en el formato que usa la app. |
+| 📡 **En vivo (ESP32)** | Conecta la ESP32-C3 por USB, mira la señal en tiempo real, marca el inicio de cada contracción con el pitido y graba cada toma en el formato que usa la app. |
 | 🌡️ **Termografía** | Captura la temperatura de cada región (T0–T2) y compárala con los indicadores de fatiga EMG. |
 """
 )

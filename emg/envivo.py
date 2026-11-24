@@ -1,4 +1,4 @@
-"""Recepción en vivo desde la ESP32 (puerto serie USB o Bluetooth SPP) y simulador.
+"""Recepción en vivo desde la ESP32 (puerto serie USB del ESP32-C3) y simulador.
 
 Protocolo (ver firmware/esp32_emg/esp32_emg.ino):
   ESP32 -> PC : líneas "t_us,tfl_mV,aductor_mV,marca"
