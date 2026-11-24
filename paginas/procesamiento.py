@@ -19,11 +19,11 @@ DESCRIPCION = {
     "3_reposo": "Post-enfriamiento · reposo", "3_contracciones": "Post-enfriamiento · 3 contracciones",
 }
 
-st.title("📂 Procesamiento de una sesión")
+st.title(":material/analytics: Procesamiento de una sesión")
 
 # ------------------------------------------------------------------ configuración
 with st.sidebar:
-    st.header("Configuración")
+    st.header(":material/tune: Configuración")
     st.caption("Ganancia total **medida** entre electrodos y el punto donde se registró la señal.")
     g_tfl = st.number_input("Ganancia TFL", min_value=1.0, value=207.87, step=0.01, format="%.2f")
     g_adu = st.number_input("Ganancia aductor largo", min_value=1.0, value=207.87, step=0.01, format="%.2f")
@@ -42,7 +42,7 @@ st.markdown("Sube los **7 archivos** de la sesión. Si se llaman `1_reposo.csv`,
             "si no (por ejemplo `scope_12.csv`), elige a qué toma corresponde cada uno.")
 c1, c2 = st.columns([3, 1])
 subidos = c1.file_uploader("Archivos CSV (osciloscopio o ESP32)", type=["csv"], accept_multiple_files=True)
-if c2.button("Cargar datos de ejemplo", use_container_width=True):
+if c2.button("Cargar datos de ejemplo", use_container_width=True, icon=":material/science:"):
     st.session_state["usar_ejemplo"] = True
 if subidos:
     st.session_state["usar_ejemplo"] = False
@@ -72,7 +72,7 @@ if fuentes and faltan:
 if not fuentes:
     st.stop()
 
-if st.button("▶ Procesar", type="primary"):
+if st.button("Procesar", type="primary", icon=":material/play_arrow:"):
     with st.spinner("Procesando…"):
         try:
             registros = {k: leer_registro(v) for k, v in fuentes.items()}
@@ -90,7 +90,7 @@ if not res:
 
 # ------------------------------------------------------------------ resultados
 for a in st.session_state.get("avisos", []):
-    st.warning(a, icon="⚠️")
+    st.warning(a, icon=":material/warning:")
 with st.expander("Detalles de los archivos leídos"):
     st.dataframe(pd.DataFrame([dict(toma=k, formato=f, fs_Hz=round(fs, 1), duración_s=round(d, 1), canales=", ".join(c))
                                for k, (f, fs, d, c) in st.session_state["info_registros"].items()]), hide_index=True)
@@ -125,11 +125,11 @@ def excel(res):
     return buf.getvalue()
 
 
-st.download_button("⬇ Descargar todos los resultados (Excel)", excel(res), "resultados_EMG.xlsx",
-                   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+st.download_button("Descargar todos los resultados (Excel)", excel(res), "resultados_EMG.xlsx",
+                   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", icon=":material/download:")
 
 for musculo, R in res.items():
-    st.header(f"🦵 {musculo}")
+    st.header(f":material/accessibility_new: {musculo}")
     df = pd.DataFrame(R.resumen).set_index("momento")
     cols = st.columns(len(df))
     for c, (mom, fila) in zip(cols, df.iterrows()):
@@ -137,7 +137,7 @@ for musculo, R in res.items():
         c.metric(mom, f"{fila['RMS_contr_uV']:.0f} µV", delta, delta_color="off")
         c.caption(f"MDF {fila['MDF_Hz']:.1f} Hz · activación {fila['t_activacion_s']:.2f} s")
 
-    t1, t2, t3, t4 = st.tabs(["Resumen", "Señales", "Comparación", "Ejercicio"])
+    t1, t2, t3, t4 = st.tabs([":material/table_chart: Resumen", ":material/show_chart: Señales", ":material/bar_chart: Comparación", ":material/directions_run: Ejercicio"])
     with t1:
         st.dataframe(tabla_resumen(R), hide_index=True, use_container_width=True)
         st.markdown("**Estadística** (Kruskal-Wallis entre momentos; Mann-Whitney contra la llegada con corrección de Bonferroni)")

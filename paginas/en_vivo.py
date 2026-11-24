@@ -10,7 +10,7 @@ from emg.envivo import Receptor, ReceptorSerie, Simulador
 TOMAS = ["1_reposo", "1_contracciones", "ejercicio", "2_reposo", "2_contracciones", "3_reposo", "3_contracciones"]
 CARPETA = Path(__file__).resolve().parent.parent / "registros"
 
-st.title("📡 Señal en vivo (ESP32)")
+st.title(":material/sensors: Señal en vivo (ESP32)")
 st.caption("Funciona cuando la app corre en **tu computadora** (`streamlit run app.py`), con la ESP32 conectada por USB "
            "(aparece como un puerto COM en Windows o /dev/ttyACM… en Mac/Linux).")
 
@@ -18,7 +18,7 @@ rx: Receptor | None = st.session_state.get("rx")
 
 # ------------------------------------------------------------------ conexión
 with st.sidebar:
-    st.header("Conexión")
+    st.header(":material/usb: Conexión")
     modo = st.radio("Fuente", ["ESP32-C3 (USB)", "Simulador (sin hardware)"])
     puerto = None
     if modo.startswith("ESP32"):
@@ -58,12 +58,12 @@ if rx.error:
 # ------------------------------------------------------------------ controles de grabación
 toma = st.selectbox("¿Qué toma vas a grabar?", TOMAS)
 b1, b2, b3 = st.columns(3)
-if b1.button("🔔 Pitido / marca de inicio", use_container_width=True, help="La ESP32 suena y guarda la marca para calcular la latencia."):
+if b1.button("Pitido / marca de inicio", icon=":material/notifications_active:", use_container_width=True, help="La ESP32 suena y guarda la marca para calcular la latencia."):
     rx.marcar()
-if b2.button("⏺ Grabar", disabled=rx.grabando, use_container_width=True):
+if b2.button("Grabar", icon=":material/radio_button_checked:", disabled=rx.grabando, use_container_width=True):
     rx.iniciar_grabacion()
     st.rerun()
-if b3.button("⏹ Detener y guardar", disabled=not rx.grabando, use_container_width=True):
+if b3.button("Detener y guardar", icon=":material/save:", disabled=not rx.grabando, use_container_width=True):
     filas = rx.detener_grabacion()
     if filas:
         CARPETA.mkdir(exist_ok=True)
@@ -76,14 +76,14 @@ if b3.button("⏹ Detener y guardar", disabled=not rx.grabando, use_container_wi
 if "ultima" in st.session_state:
     nombre, csv, n = st.session_state["ultima"]
     st.success(f"Toma guardada en la carpeta `registros/` ({n} muestras). También puedes descargarla:")
-    st.download_button(f"⬇ Descargar {nombre}", csv, nombre, "text/csv")
+    st.download_button(f"Descargar {nombre}", csv, nombre, "text/csv", icon=":material/download:")
 
 
 # ------------------------------------------------------------------ gráfica en vivo
 @st.fragment(run_every=0.5)
 def vista():
     d = rx.ventana()
-    estado = "🔴 GRABANDO" if rx.grabando else ("🟢 recibiendo" if rx.activo else "⚪ desconectado")
+    estado = ":red[:material/fiber_manual_record: GRABANDO]" if rx.grabando else (":blue[:material/wifi_tethering: recibiendo]" if rx.activo else ":gray[:material/link_off: desconectado]")
     n_grab = len(rx.grabacion) if rx.grabando else 0
     st.markdown(f"**{estado}** · muestras recibidas: {rx.muestras:,}" + (f" · grabadas: {n_grab:,}" if rx.grabando else ""))
     if len(d) < 10:
@@ -96,11 +96,11 @@ def vista():
     fs = 1 / np.median(np.diff(t)) if len(t) > 2 else 0
     offset = np.median(d[:, 1:3], axis=0)          # offset real de cada canal
     fig = go.Figure()
-    for j, (nombre, color) in enumerate((("TFL", "#B22222"), ("Aductor", "#1F3864")), start=1):
+    for j, (nombre, color) in enumerate((("TFL", "#1D4E89"), ("Aductor", "#2E9BD6")), start=1):
         fig.add_scatter(x=t[::paso], y=d[::paso, j] - offset[j - 1], mode="lines",
                         line=dict(color=color, width=1), name=nombre, yaxis=f"y{'' if j == 1 else 2}")
     for tm in t[d[:, 3] == 1]:
-        fig.add_vline(x=tm, line=dict(color="#2E7D32", dash="dash"))
+        fig.add_vline(x=tm, line=dict(color="#0B2545", dash="dash", width=2))
     fig.update_layout(template="plotly_white", height=460, margin=dict(l=60, r=20, t=30, b=40), showlegend=True,
                       xaxis=dict(title="Tiempo (s)", range=[-seg_vista, 0]),
                       yaxis=dict(title="TFL (mV, sin offset)", domain=[0.53, 1], range=[-escala, escala]),
@@ -115,7 +115,7 @@ def vista():
     c[1].metric("RMS aductor (últimos 0.5 s, mV ADC)", f"{rms[1]:.0f}")
     c[2].metric("Muestreo", f"{fs:.0f} Hz")
     if satur:
-        st.warning("La señal llega a los límites del ADC del ESP32-C3 (≈0–2.5 V): baja la ganancia o ajusta el offset.", icon="⚠️")
+        st.warning("La señal llega a los límites del ADC del ESP32-C3 (≈0–2.5 V): baja la ganancia o ajusta el offset.", icon=":material/warning:")
 
 
 vista()

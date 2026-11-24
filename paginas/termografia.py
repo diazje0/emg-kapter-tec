@@ -5,7 +5,7 @@ from scipy.stats import spearmanr
 
 from emg import graficas as gr
 
-st.title("🌡️ Termografía")
+st.title(":material/thermostat: Termografía")
 st.caption("Captura la temperatura promedio de cada región de interés (ROI) medida en el software de FOTRIC "
            "y compárala con los indicadores EMG de la página de Procesamiento.")
 
@@ -24,7 +24,7 @@ with c2:
             st.session_state["temp"] = df_sub[["Momento", *ROIS, "Borg (0-10)"]]
         except Exception as e:
             st.error(f"El CSV debe tener las columnas: Momento, {', '.join(ROIS)}, Borg (0-10). ({e})")
-    st.download_button("⬇ Descargar tabla", st.session_state["temp"].to_csv(index=False), "termografia.csv", "text/csv")
+    st.download_button("Descargar tabla", st.session_state["temp"].to_csv(index=False), "termografia.csv", "text/csv", icon=":material/download:")
 with c1:
     df = st.data_editor(st.session_state["temp"], hide_index=True, use_container_width=True, disabled=["Momento"],
                         column_config={r: st.column_config.NumberColumn(r, format="%.2f", min_value=20.0, max_value=42.0) for r in ROIS})
