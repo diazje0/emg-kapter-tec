@@ -59,6 +59,11 @@ if rx.error:
 # ------------------------------------------------------------------ controles de grabación
 if "_siguiente" in st.session_state:                 # después de guardar, pasa a la siguiente toma
     st.session_state["toma"] = st.session_state.pop("_siguiente")
+with st.expander("Cómo grabar una sesión", icon=":material/help:"):
+    st.markdown("1. **Conectar** (barra izquierda).  \n2. Elige la **toma**.  \n3. **Grabar**.  \n"
+                "4. En las contracciones, presiona **Pitido** cuando quieras que la persona contraiga.  \n"
+                "5. **Detener y guardar**: se pasa sola a la siguiente toma.  \n"
+                "6. Al final, ve a **Procesamiento** y sube los 7 archivos de la carpeta `registros/`.")
 toma = st.selectbox("¿Qué toma vas a grabar?", TOMAS, key="toma")
 b1, b2, b3, b4 = st.columns(4)
 if b1.button("Pitido / marca de inicio", icon=":material/notifications_active:", use_container_width=True, help="La ESP32 suena y guarda la marca para calcular la latencia."):

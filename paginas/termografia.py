@@ -4,6 +4,7 @@ import streamlit as st
 from scipy.stats import spearmanr
 
 from emg import graficas as gr
+from emg.interpretacion import conclusion_termica
 
 st.title(":material/thermostat: Termografía")
 st.caption("Captura la temperatura promedio de cada región de interés (ROI) medida en el software de FOTRIC "
@@ -43,8 +44,12 @@ for r in ROIS:
 calc["Asimetría TFL der.−izq. (°C)"] = d["TFL der. (°C)"] - d["TFL izq. (°C)"]
 calc["Asimetría aductor der.−izq. (°C)"] = d["Aductor der. (°C)"] - d["Aductor izq. (°C)"]
 
+for roi in ("TFL der.", "Aductor der."):
+    frase = conclusion_termica(calc, roi)
+    if frase:
+        st.info(frase, icon=":material/thermostat:")
 st.plotly_chart(gr.temperatura(d, ROIS), use_container_width=True)
-st.markdown("**Cambios respecto a la llegada (ΔT) y asimetría entre piernas**")
+st.markdown("**Cambios respecto a la llegada (ΔT) y diferencia entre pierna derecha e izquierda**")
 st.dataframe(calc.round(2), hide_index=True, use_container_width=True)
 
 # ------------------------------------------------------------------ relación con la EMG
@@ -70,6 +75,10 @@ if ok.sum() == 3:
     r1 = spearmanr(y, emg["RMS (%)"]).statistic
     r2 = spearmanr(y, emg["MDF (Hz)"]).statistic
     a, b = st.columns(2)
-    a.metric("Spearman ρ (temperatura vs. RMS)", f"{r1:+.2f}")
-    b.metric("Spearman ρ (temperatura vs. MDF)", f"{r2:+.2f}")
-    st.caption("Con solo 3 momentos la correlación es **exploratoria**: indica la dirección de la relación, no su significancia.")
+    a.metric("Temperatura vs. activación (ρ)", f"{r1:+.2f}")
+    b.metric("Temperatura vs. frecuencia mediana (ρ)", f"{r2:+.2f}")
+    leer = lambda r, que: (f"cuando sube la temperatura, {que} también sube" if r > 0.5 else
+                           f"cuando sube la temperatura, {que} baja" if r < -0.5 else f"no hay una relación clara con {que}")
+    st.markdown(f"- **Activación:** {leer(r1, 'la activación')}.\n- **Frecuencia mediana:** {leer(r2, 'la frecuencia mediana')}.")
+    st.caption("ρ (Spearman) va de −1 a +1: cerca de +1 = suben juntas; cerca de −1 = una sube y la otra baja. "
+               "Con solo 3 momentos es **orientativo**: muestra la tendencia, no una prueba estadística.")

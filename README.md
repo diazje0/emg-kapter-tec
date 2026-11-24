@@ -26,7 +26,11 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-Se abre en el navegador (`http://localhost:8501`). Para probar sin datos reales: **Procesamiento → Cargar datos de ejemplo**.
+Se abre en el navegador (`http://localhost:8501`).
+
+**En Windows, la forma más fácil:** con Python instalado, da doble clic a `Iniciar_app.bat`.
+Instala lo necesario la primera vez y abre la app; para cerrarla, cierra la ventana negra.
+ Para probar sin datos reales: **Procesamiento → Cargar datos de ejemplo**.
 
 > La página **En vivo** necesita que la app corra en la computadora conectada a la ESP32 (no funciona en la nube).
 

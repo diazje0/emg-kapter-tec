@@ -7,6 +7,7 @@ import streamlit as st
 
 from emg import Parametros, leer_registro
 from emg import graficas as gr
+from emg.interpretacion import GLOSARIO, conclusiones
 from emg.sesion import CLAVES, analizar_sesion
 
 RAIZ = Path(__file__).resolve().parent.parent
@@ -38,8 +39,9 @@ with st.sidebar:
         )
 
 # ------------------------------------------------------------------ carga de archivos
-st.markdown("Sube los **7 archivos** de la sesión. Si se llaman `1_reposo.csv`, `ejercicio.csv`, etc. se asignan solos; "
-            "si no (por ejemplo `scope_12.csv`), elige a qué toma corresponde cada uno.")
+st.markdown("**1.** Sube los **7 archivos** de la sesión (o prueba con los datos de ejemplo).  \n"
+            "**2.** Si un archivo no tiene el nombre de la toma (por ejemplo `scope_12.csv`), elige a cuál corresponde.  \n"
+            "**3.** Presiona **Procesar**.")
 c1, c2 = st.columns([3, 1])
 subidos = c1.file_uploader("Archivos CSV (osciloscopio o ESP32)", type=["csv"], accept_multiple_files=True)
 if c2.button("Cargar datos de ejemplo", use_container_width=True, icon=":material/science:"):
@@ -128,44 +130,77 @@ def excel(res):
 st.download_button("Descargar todos los resultados (Excel)", excel(res), "resultados_EMG.xlsx",
                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", icon=":material/download:")
 
+with st.expander("¿Qué significa cada valor?", icon=":material/help:"):
+    for k, v in GLOSARIO.items():
+        st.markdown(f"**{k}:** {v}")
+
+
+def tabla_sencilla(R):
+    df = pd.DataFrame(R.resumen)
+    return pd.DataFrame({
+        "Momento": df["momento"],
+        "Activación (µV)": df["RMS_contr_uV"].round(0),
+        "Activación (% del máximo)": df["RMS_contr_pct"].round(1),
+        "Frecuencia mediana (Hz)": df["MDF_Hz"].round(1),
+        "Duración de la activación (s)": df["t_activacion_s"].round(2),
+        "Tiempo de reacción (ms)": df["latencia_ms"].map(lambda v: f"{v:.0f}" if np.isfinite(v) else "—"),
+    })
+
+
 for musculo, R in res.items():
     st.header(f":material/accessibility_new: {musculo}")
     df = pd.DataFrame(R.resumen).set_index("momento")
     cols = st.columns(len(df))
     for c, (mom, fila) in zip(cols, df.iterrows()):
-        delta = None if mom == "Llegada" else f"{fila['cambio_RMS_vs_llegada_pct']:+.0f} % RMS"
-        c.metric(mom, f"{fila['RMS_contr_uV']:.0f} µV", delta, delta_color="off")
-        c.caption(f"MDF {fila['MDF_Hz']:.1f} Hz · activación {fila['t_activacion_s']:.2f} s")
+        delta = None if mom == "Llegada" else f"{fila['cambio_RMS_vs_llegada_pct']:+.0f} % vs. llegada"
+        c.metric(f"Activación · {mom}", f"{fila['RMS_contr_uV']:.0f} µV", delta, delta_color="off")
+        c.caption(f"Frecuencia mediana: **{fila['MDF_Hz']:.1f} Hz**")
 
-    t1, t2, t3, t4 = st.tabs([":material/table_chart: Resumen", ":material/show_chart: Señales", ":material/bar_chart: Comparación", ":material/directions_run: Ejercicio"])
+    with st.container(border=True):
+        st.markdown("##### :material/lightbulb: ¿Qué nos dicen los resultados?")
+        for frase in conclusiones(R, musculo):
+            st.markdown(f"- {frase}")
+
+    t1, t2, t3, t4 = st.tabs([":material/bar_chart: Comparación", ":material/show_chart: Señales",
+                              ":material/directions_run: Ejercicio", ":material/table_chart: Tablas y estadística"])
     with t1:
-        st.dataframe(tabla_resumen(R), hide_index=True, use_container_width=True)
-        st.markdown("**Estadística** (Kruskal-Wallis entre momentos; Mann-Whitney contra la llegada con corrección de Bonferroni)")
-        est = pd.DataFrame(R.estadistica)
-        if not est.empty:
-            fmt = lambda v: "< 0.001" if v < 0.001 else f"{v:.3f}"
-            for c in est.columns[1:]:
-                est[c] = est[c].map(lambda v: fmt(v) if np.isfinite(v) else "—")
-            est.columns = ["Variable", "p (Kruskal-Wallis)", "p post-ejercicio vs llegada", "p post-enfriamiento vs llegada"]
-            st.dataframe(est, hide_index=True, use_container_width=True)
-        with st.expander("Detalle por contracción"):
-            det = pd.DataFrame(R.contracciones).drop(columns="musculo").round(2)
-            st.dataframe(det.astype(object).where(det.notna(), "N/D"), hide_index=True, use_container_width=True)
+        st.caption("Cada barra es el promedio de las 3 contracciones; la línea negra es la desviación estándar.")
+        st.plotly_chart(gr.barras(R.resumen, musculo), use_container_width=True)
+        with st.expander("Ver la distribución por ventanas (diagramas de caja)"):
+            st.plotly_chart(gr.cajas(R.ventanas, musculo), use_container_width=True)
     with t2:
+        st.caption("Gris: señal rectificada · azul: RMS · azul marino: envolvente · franjas: contracciones detectadas "
+                   "con su duración.")
         for mom in [m for m in ("Llegada", "Post-ejercicio", "Post-enfriamiento") if m in R.graficas]:
             st.plotly_chart(gr.senal_contracciones(R.graficas[mom], musculo, mom), use_container_width=True)
     with t3:
-        st.plotly_chart(gr.cajas(R.ventanas, musculo), use_container_width=True)
-        st.plotly_chart(gr.barras(R.resumen, musculo), use_container_width=True)
-    with t4:
         if R.ejercicio:
             e = R.ejercicio
             a, b, c = st.columns(3)
-            a.metric("RMS (primeros → últimos 30 s)", f"{e['rms_ultimos']:.0f} µV", f"{e['rms_cambio_pct']:+.1f} %", delta_color="off")
-            b.metric("MDF (primeros → últimos 30 s)", f"{e['mdf_ultimos']:.1f} Hz", f"{e['mdf_cambio_pct']:+.1f} %", delta_color="off")
-            c.metric("Pendiente de la MDF", f"{e['mdf_pendiente_hz_min']:+.2f} Hz/min", "negativa = fatiga", delta_color="off")
-            st.caption(f"Ventanas útiles: {e['ventanas_utiles']} de {e['ventanas_total']} "
-                       f"({e['pausas']} pausas y {e['artefactos']} con artefacto excluidas).")
+            a.metric("Activación al final del minuto", f"{e['rms_ultimos']:.0f} µV", f"{e['rms_cambio_pct']:+.1f} % vs. inicio", delta_color="off")
+            b.metric("Frecuencia mediana al final", f"{e['mdf_ultimos']:.1f} Hz", f"{e['mdf_cambio_pct']:+.1f} % vs. inicio", delta_color="off")
+            c.metric("Tendencia de la frecuencia", f"{e['mdf_pendiente_hz_min']:+.2f} Hz/min", "si es negativa = fatiga", delta_color="off")
+            st.caption(f"Se compararon los primeros y los últimos 30 s. Se usaron {e['ventanas_utiles']} de {e['ventanas_total']} "
+                       f"ventanas ({e['pausas']} pausas y {e['artefactos']} con artefacto se excluyeron).")
             st.plotly_chart(gr.ejercicio(R.graficas["ejercicio"], musculo), use_container_width=True)
         else:
             st.info("No se cargó el archivo del ejercicio.")
+    with t4:
+        st.markdown("**Resumen**")
+        st.dataframe(tabla_sencilla(R), hide_index=True, use_container_width=True)
+        st.markdown("**¿Las diferencias son significativas?** (p < 0.05 = sí)")
+        est = pd.DataFrame(R.estadistica)
+        if not est.empty:
+            fmt = lambda v: "—" if not np.isfinite(v) else (("< 0.001" if v < 0.001 else f"{v:.3f}") + (" ✔" if v < 0.05 else ""))
+            for c in est.columns[1:]:
+                est[c] = est[c].map(fmt)
+            est["variable"] = est["variable"].replace({"RMS normalizado (%)": "Activación (%)", "MDF (Hz)": "Frecuencia mediana (Hz)",
+                                                       "Tiempo de activación (s)": "Duración de la activación (s)"})
+            est.columns = ["Variable", "Entre los 3 momentos", "Post-ejercicio vs. llegada", "Post-enfriamiento vs. llegada"]
+            st.dataframe(est, hide_index=True, use_container_width=True)
+            st.caption("Pruebas: Kruskal-Wallis entre los 3 momentos y Mann-Whitney contra la llegada (corrección de Bonferroni).")
+        with st.expander("Todos los valores (con desviación estándar)"):
+            st.dataframe(tabla_resumen(R), hide_index=True, use_container_width=True)
+        with st.expander("Detalle de cada contracción"):
+            det = pd.DataFrame(R.contracciones).drop(columns="musculo").round(2)
+            st.dataframe(det.astype(object).where(det.notna(), "N/D"), hide_index=True, use_container_width=True)
