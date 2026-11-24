@@ -95,7 +95,7 @@ Firmware en [`firmware/esp32_emg/esp32_emg.ino`](firmware/esp32_emg/esp32_emg.in
 | Rango útil del ADC | ~0.15–3.1 V | ~0–2.5 V |
 | Placa en el IDE | *ESP32 Dev Module* | *ESP32C3 Dev Module* + *USB CDC On Boot: Enabled* |
 
-Muestrea 2 canales a 2 kHz y envía por USB a 921 600 baudios. Comandos: `S` iniciar, `P` pausar, `B` pitido + marca.
+Muestrea 2 canales a 2 kHz y envía por USB a 921 600 baudios y, en la DevKit, también por **Bluetooth** (`EMG_KapterTEC`; emparejar en Windows y usar en la app el puerto COM *saliente*). Si al compilar sale *Sketch too big*: **Tools → Partition Scheme → Huge APP**. Comandos: `S` iniciar, `P` pausar, `B` pitido + marca.
 Para probar sin la app: Monitor serie a 921600, enviar `S`; deben aparecer líneas como `123456,1650,1648,0`.
 
 ⚠️ **Seguridad:** el circuito del lado del paciente funciona solo con baterías. Nunca conecten la ESP32, una

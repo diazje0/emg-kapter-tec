@@ -12,14 +12,15 @@ CARPETA = Path(__file__).resolve().parent.parent / "registros"
 
 st.title(":material/sensors: Señal en vivo (ESP32)")
 st.caption("Funciona cuando la app corre en **tu computadora** (`streamlit run app.py`), con la ESP32 conectada por USB "
-           "(aparece como un puerto COM en Windows).")
+           "o por Bluetooth (en ambos casos aparece como un puerto COM en Windows).")
 
 rx: Receptor | None = st.session_state.get("rx")
 
 # ------------------------------------------------------------------ conexión
 with st.sidebar:
     st.header(":material/usb: Conexión")
-    modo = st.radio("Fuente", ["ESP32 (USB)", "Simulador (sin hardware)"])
+    modo = st.radio("Fuente", ["ESP32 (USB o Bluetooth)", "Simulador (sin hardware)"],
+                    help="Por Bluetooth: empareja **EMG_KapterTEC** en Windows y elige aquí el puerto COM *saliente* que creó.")
     placa = st.selectbox("Placa", ["ESP32 DevKit (convencional)", "ESP32-C3"],
                          help="Solo cambia el límite de saturación del aviso: ~3.1 V en la ESP32 DevKit, ~2.5 V en la C3.")
     st.session_state["lim_adc"], st.session_state["lim_min"] = (3050, 160) if placa.startswith("ESP32 DevKit") else (2450, 20)

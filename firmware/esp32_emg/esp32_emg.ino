@@ -23,8 +23,16 @@
      Rango útil del ADC: ~0 a ~2.5 V (centrar la salida en ~1.25 V).
      Arduino IDE: placa "ESP32C3 Dev Module", USB CDC On Boot: "Enabled".
 
+  BLUETOOTH (solo ESP32 DevKit; la C3 no tiene Bluetooth clásico):
+     La placa aparece como "EMG_KapterTEC". Emparejarla en Windows y usar en la app el
+     puerto COM "saliente" que crea Windows. Se envía por USB y por Bluetooth a la vez.
+     Si al compilar sale "Sketch too big": Tools > Partition Scheme > "Huge APP (3MB No OTA)".
+     Para quitar el Bluetooth, cambiar USAR_BLUETOOTH a 0.
+
   Core requerido: "esp32 by Espressif Systems" versión 3.x.
 */
+
+#define USAR_BLUETOOTH 1
 
 #if defined(CONFIG_IDF_TARGET_ESP32C3)
   const int PIN_TFL = 0, PIN_ADUCTOR = 1, PIN_BUZZER = 10;
@@ -32,7 +40,23 @@
 #else
   const int PIN_TFL = 34, PIN_ADUCTOR = 35, PIN_BUZZER = 25;
   const char *PLACA = "ESP32";
+  #if USAR_BLUETOOTH
+    #include "BluetoothSerial.h"
+    BluetoothSerial SerialBT;
+    #define HAY_BT 1
+  #endif
 #endif
+#ifndef HAY_BT
+  #define HAY_BT 0
+#endif
+
+// Escribe lo mismo por USB y, si hay una computadora conectada, por Bluetooth
+void enviar(const char *txt, size_t n) {
+  Serial.write((const uint8_t *)txt, n);
+#if HAY_BT
+  if (SerialBT.hasClient()) SerialBT.write((const uint8_t *)txt, n);
+#endif
+}
 
 const uint32_t BAUDIOS  = 921600;      // debe coincidir con la app (en el C3 con USB nativo se ignora)
 const uint32_t FS_HZ    = 2000;        // muestras por segundo por canal
@@ -49,7 +73,8 @@ void IRAM_ATTR alTimer() { tocaMuestra = true; }
 void procesarComando(char c) {
   if (c == 'S') {
     enviando = true;
-    Serial.println("t_us,tfl_mV,aductor_mV,marca");
+    const char *enc = "t_us,tfl_mV,aductor_mV,marca\n";
+    enviar(enc, strlen(enc));
   } else if (c == 'P') {
     enviando = false;
   } else if (c == 'B') {
@@ -73,11 +98,17 @@ void setup() {
   timerAlarm(timer, 1000000 / FS_HZ, true, 0);     // interrupción cada 500 us
 
   delay(300);
+#if HAY_BT
+  SerialBT.begin("EMG_KapterTEC");
+#endif
   Serial.printf("# EMG Kapter-TEC listo (%s). Envia S para iniciar.\n", PLACA);
 }
 
 void loop() {
   while (Serial.available()) procesarComando((char)Serial.read());
+#if HAY_BT
+  while (SerialBT.available()) procesarComando((char)SerialBT.read());
+#endif
 
   if (finPitido && millis() >= finPitido) {
     digitalWrite(PIN_BUZZER, LOW);
@@ -94,7 +125,7 @@ void loop() {
     if (enviando) {
       char linea[40];
       int n = snprintf(linea, sizeof(linea), "%lu,%d,%d,%d\n", (unsigned long)t, tfl, adu, m);
-      Serial.write((const uint8_t *)linea, n);
+      enviar(linea, n);
     }
   }
 }
