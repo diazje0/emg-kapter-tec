@@ -149,7 +149,8 @@ for musculo, R in res.items():
             est.columns = ["Variable", "p (Kruskal-Wallis)", "p post-ejercicio vs llegada", "p post-enfriamiento vs llegada"]
             st.dataframe(est, hide_index=True, use_container_width=True)
         with st.expander("Detalle por contracción"):
-            st.dataframe(pd.DataFrame(R.contracciones).drop(columns="musculo").round(2), hide_index=True, use_container_width=True)
+            det = pd.DataFrame(R.contracciones).drop(columns="musculo").round(2)
+            st.dataframe(det.astype(object).where(det.notna(), "N/D"), hide_index=True, use_container_width=True)
     with t2:
         for mom in [m for m in ("Llegada", "Post-ejercicio", "Post-enfriamiento") if m in R.graficas]:
             st.plotly_chart(gr.senal_contracciones(R.graficas[mom], musculo, mom), use_container_width=True)
