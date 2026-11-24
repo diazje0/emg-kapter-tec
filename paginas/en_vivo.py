@@ -44,6 +44,7 @@ with st.sidebar:
         if rx:
             rx.iniciar()
             st.session_state["rx"] = rx
+            st.session_state.pop("ultima", None)
             st.rerun()
     if c2.button("Desconectar", disabled=not (rx and rx.activo), use_container_width=True):
         rx.detener()
@@ -56,8 +57,10 @@ if rx.error:
     st.error(f"Error de conexión: {rx.error}")
 
 # ------------------------------------------------------------------ controles de grabación
-toma = st.selectbox("¿Qué toma vas a grabar?", TOMAS)
-b1, b2, b3 = st.columns(3)
+if "_siguiente" in st.session_state:                 # después de guardar, pasa a la siguiente toma
+    st.session_state["toma"] = st.session_state.pop("_siguiente")
+toma = st.selectbox("¿Qué toma vas a grabar?", TOMAS, key="toma")
+b1, b2, b3, b4 = st.columns(4)
 if b1.button("Pitido / marca de inicio", icon=":material/notifications_active:", use_container_width=True, help="La ESP32 suena y guarda la marca para calcular la latencia."):
     rx.marcar()
 if b2.button("Grabar", icon=":material/radio_button_checked:", disabled=rx.grabando, use_container_width=True):
@@ -71,6 +74,14 @@ if b3.button("Detener y guardar", icon=":material/save:", disabled=not rx.graban
         csv = Receptor.a_csv(filas)
         (CARPETA / f"{toma}_{datetime.now():%Y%m%d_%H%M%S}.csv").write_text(csv)
         st.session_state["ultima"] = (nombre, csv, len(filas))
+        i = TOMAS.index(toma)
+        if i + 1 < len(TOMAS):
+            st.session_state["_siguiente"] = TOMAS[i + 1]
+    st.rerun()
+if b4.button("Reiniciar pantalla", icon=":material/restart_alt:", disabled=rx.grabando, use_container_width=True,
+             help="Borra la señal mostrada y el aviso de la última toma. No cierra la conexión."):
+    rx.limpiar()
+    st.session_state.pop("ultima", None)
     st.rerun()
 
 if "ultima" in st.session_state:

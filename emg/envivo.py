@@ -47,6 +47,12 @@ class Receptor:
             if self.grabando:
                 self.grabacion.append(fila)
 
+    def limpiar(self):
+        """Borra lo que se ve en pantalla (no afecta una grabación en curso)."""
+        with self._lock:
+            self.buf.clear()
+            self.muestras = 0
+
     def ventana(self):
         with self._lock:
             return np.array(self.buf) if self.buf else np.empty((0, 4))
