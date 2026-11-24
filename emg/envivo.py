@@ -1,4 +1,4 @@
-"""Recepción en vivo desde la ESP32 (puerto serie USB del ESP32-C3) y simulador.
+"""Recepción en vivo desde la ESP32 (DevKit o C3, por USB) y simulador.
 
 Protocolo (ver firmware/esp32_emg/esp32_emg.ino):
   ESP32 -> PC : líneas "t_us,tfl_mV,aductor_mV,marca"
@@ -81,11 +81,21 @@ class ReceptorSerie(Receptor):
     def _bucle(self):
         import serial
         try:
-            self.ser = serial.Serial(self.puerto, self.baudios, timeout=1)
-            time.sleep(0.5)
+            # Abrir sin mover DTR/RTS para no reiniciar la ESP32 DevKit; si aun así se reinicia,
+            # se espera a que arranque y se repite la orden de inicio hasta recibir datos.
+            self.ser = serial.Serial()
+            self.ser.port, self.ser.baudrate, self.ser.timeout = self.puerto, self.baudios, 0.5
+            self.ser.dtr = False
+            self.ser.rts = False
+            self.ser.open()
+            time.sleep(1.5)
             self.ser.reset_input_buffer()
             self.ser.write(b"S")
+            ultimo_s = time.time()
             while self.activo:
+                if self.muestras == 0 and time.time() - ultimo_s > 2:
+                    self.ser.write(b"S")
+                    ultimo_s = time.time()
                 linea = self.ser.readline().decode("ascii", errors="ignore").strip()
                 if not linea or linea.startswith("t_us") or linea.startswith("#"):
                     continue

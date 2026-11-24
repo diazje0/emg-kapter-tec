@@ -12,14 +12,17 @@ CARPETA = Path(__file__).resolve().parent.parent / "registros"
 
 st.title(":material/sensors: Señal en vivo (ESP32)")
 st.caption("Funciona cuando la app corre en **tu computadora** (`streamlit run app.py`), con la ESP32 conectada por USB "
-           "(aparece como un puerto COM en Windows o /dev/ttyACM… en Mac/Linux).")
+           "(aparece como un puerto COM en Windows).")
 
 rx: Receptor | None = st.session_state.get("rx")
 
 # ------------------------------------------------------------------ conexión
 with st.sidebar:
     st.header(":material/usb: Conexión")
-    modo = st.radio("Fuente", ["ESP32-C3 (USB)", "Simulador (sin hardware)"])
+    modo = st.radio("Fuente", ["ESP32 (USB)", "Simulador (sin hardware)"])
+    placa = st.selectbox("Placa", ["ESP32 DevKit (convencional)", "ESP32-C3"],
+                         help="Solo cambia el límite de saturación del aviso: ~3.1 V en la ESP32 DevKit, ~2.5 V en la C3.")
+    st.session_state["lim_adc"], st.session_state["lim_min"] = (3050, 160) if placa.startswith("ESP32 DevKit") else (2450, 20)
     puerto = None
     if modo.startswith("ESP32"):
         try:
@@ -28,9 +31,9 @@ with st.sidebar:
         except Exception:
             puertos = []
         puerto = st.selectbox("Puerto", puertos or ["(no se encontraron puertos)"])
-        baudios = st.selectbox("Velocidad (USB)", [921600, 115200], help="Con el USB nativo del ESP32-C3 la velocidad no importa.")
+        baudios = st.selectbox("Velocidad (baudios)", [921600, 115200], help="Debe coincidir con BAUDIOS del firmware (921600). En la C3 con USB nativo no importa.")
     seg_vista = st.slider("Segundos en pantalla", 2, 10, 5)
-    escala = st.slider("Escala vertical (± mV en el ADC)", 100, 1300, 800, 50)
+    escala = st.slider("Escala vertical (± mV en el ADC)", 100, 1600, 800, 50)
 
     c1, c2 = st.columns(2)
     if c1.button("Conectar", type="primary", disabled=bool(rx and rx.activo), use_container_width=True):
@@ -125,13 +128,13 @@ def vista():
     st.plotly_chart(fig, use_container_width=True, key="vivo")
     v = d[:, 1:3]
     rms = np.sqrt(np.mean((v[-int(max(fs, 1) * 0.5):] - v.mean(axis=0)) ** 2, axis=0))
-    satur = (v.min() < 100) or (v.max() > 2450)
+    satur = (v.min() < st.session_state.get("lim_min", 160)) or (v.max() > st.session_state.get("lim_adc", 3050))
     c = st.columns(3)
     c[0].metric("RMS TFL (últimos 0.5 s, mV ADC)", f"{rms[0]:.0f}")
     c[1].metric("RMS aductor (últimos 0.5 s, mV ADC)", f"{rms[1]:.0f}")
     c[2].metric("Muestreo", f"{fs:.0f} Hz")
     if satur:
-        st.warning("La señal llega a los límites del ADC del ESP32-C3 (≈0–2.5 V): baja la ganancia o ajusta el offset.", icon=":material/warning:")
+        st.warning("La señal llega al límite del ADC de la ESP32: baja la ganancia o ajusta el offset.", icon=":material/warning:")
 
 
 vista()

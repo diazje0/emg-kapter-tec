@@ -1,33 +1,41 @@
 /*
-  EMG Kapter-TEC — firmware para ESP32-C3 (DevKitM-1, SuperMini y similares)
+  EMG Kapter-TEC — firmware para ESP32 (DevKit "convencional", WROOM-32) y ESP32-C3
 
-  - Muestrea 2 canales a 2 kHz con un timer de hardware (ADC1, atenuación 11 dB).
-  - Envía por USB (USB-CDC nativo del C3) líneas:  t_us,tfl_mV,aductor_mV,marca
-  - Comandos que recibe (desde la app o el Monitor serie):
+  Muestrea 2 canales a 2 kHz con un timer de hardware y envía por USB líneas:
+        t_us,tfl_mV,aductor_mV,marca
+  Comandos que recibe (desde la app o el Monitor serie):
         S = iniciar envío    P = pausar envío    B = pitido + marca de inicio (para la latencia)
 
-  Conexiones (ESP32-C3):
-        Salida canal TFL      -> GPIO 0  (ADC1_CH0)
-        Salida canal aductor  -> GPIO 1  (ADC1_CH1)
-        Buzzer activo 3.3 V   -> GPIO 10 (y GND)
+  El mismo archivo sirve para las dos placas: elige la placa correcta en el Arduino IDE
+  y los pines se ajustan solos.
+
+  ---------------- ESP32 DevKit (ESP32-WROOM-32) ----------------
+        Salida canal TFL      -> GPIO 34  (D34, ADC1)
+        Salida canal aductor  -> GPIO 35  (D35, ADC1)
+        Buzzer activo 3.3 V   -> GPIO 25  (D25)  y GND
         GND de la ESP32       -> GND2 (lado de SALIDA del ISO124). Nunca al lado del paciente.
-  Evitar: GPIO 2, 8 y 9 (pines de arranque), 18–19 (USB) y 20–21 (UART0).
-  No usar GPIO 5 para señal: es ADC2 y en el C3 no es confiable.
+     Rango útil del ADC: ~0.15 a ~3.1 V. Centrar la salida en ~1.65 V está bien.
+     Usar solo pines ADC1 (32–39): los ADC2 no funcionan bien junto con el Bluetooth/WiFi.
+     Arduino IDE: placa "ESP32 Dev Module", Upload Speed 921600.
 
-  RANGO DEL ADC: con 11 dB el C3 mide bien de ~0 a ~2.5 V (no hasta 3.3 V).
-  Si el offset de la salida está en 1.65 V, solo quedan ~0.85 V hacia arriba:
-  conviene bajar el offset a ~1.25 V (divisor de referencia) o limitar la ganancia.
+  ---------------- ESP32-C3 (SuperMini, DevKitM) ----------------
+        TFL -> GPIO 0 · aductor -> GPIO 1 · buzzer -> GPIO 10
+     Rango útil del ADC: ~0 a ~2.5 V (centrar la salida en ~1.25 V).
+     Arduino IDE: placa "ESP32C3 Dev Module", USB CDC On Boot: "Enabled".
 
-  Arduino IDE, core "esp32 by Espressif Systems" 3.x:
-        Placa: "ESP32C3 Dev Module" (o la de tu modelo)
-        Tools > USB CDC On Boot: "Enabled"   <- necesario si la placa usa el USB nativo
-  Con USB nativo la velocidad (baudios) no importa.
+  Core requerido: "esp32 by Espressif Systems" versión 3.x.
 */
 
-const int PIN_TFL     = 0;
-const int PIN_ADUCTOR = 1;
-const int PIN_BUZZER  = 10;
-const uint32_t FS_HZ  = 2000;          // muestras por segundo por canal
+#if defined(CONFIG_IDF_TARGET_ESP32C3)
+  const int PIN_TFL = 0, PIN_ADUCTOR = 1, PIN_BUZZER = 10;
+  const char *PLACA = "ESP32-C3";
+#else
+  const int PIN_TFL = 34, PIN_ADUCTOR = 35, PIN_BUZZER = 25;
+  const char *PLACA = "ESP32";
+#endif
+
+const uint32_t BAUDIOS  = 921600;      // debe coincidir con la app (en el C3 con USB nativo se ignora)
+const uint32_t FS_HZ    = 2000;        // muestras por segundo por canal
 const uint32_t PITIDO_MS = 120;
 
 hw_timer_t *timer = nullptr;
@@ -52,17 +60,20 @@ void procesarComando(char c) {
 }
 
 void setup() {
-  Serial.begin(921600);                  // en USB-CDC nativo el valor se ignora
+  Serial.setTxBufferSize(4096);
+  Serial.begin(BAUDIOS);
   pinMode(PIN_BUZZER, OUTPUT);
   digitalWrite(PIN_BUZZER, LOW);
   analogReadResolution(12);
   analogSetPinAttenuation(PIN_TFL, ADC_11db);
   analogSetPinAttenuation(PIN_ADUCTOR, ADC_11db);
 
-  timer = timerBegin(1000000);           // 1 MHz
+  timer = timerBegin(1000000);                     // 1 MHz
   timerAttachInterrupt(timer, &alTimer);
-  timerAlarm(timer, 1000000 / FS_HZ, true, 0);
-  Serial.println("# EMG Kapter-TEC (ESP32-C3) listo. Envia S para iniciar.");
+  timerAlarm(timer, 1000000 / FS_HZ, true, 0);     // interrupción cada 500 us
+
+  delay(300);
+  Serial.printf("# EMG Kapter-TEC listo (%s). Envia S para iniciar.\n", PLACA);
 }
 
 void loop() {
@@ -76,7 +87,7 @@ void loop() {
   if (tocaMuestra) {
     tocaMuestra = false;
     uint32_t t = micros();
-    int tfl = analogReadMilliVolts(PIN_TFL);       // mV ya calibrados
+    int tfl = analogReadMilliVolts(PIN_TFL);       // mV ya calibrados de fábrica
     int adu = analogReadMilliVolts(PIN_ADUCTOR);
     int m = 0;
     if (marcaPendiente) { m = 1; marcaPendiente = false; }
