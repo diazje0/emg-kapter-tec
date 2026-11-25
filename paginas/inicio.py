@@ -1,6 +1,6 @@
 import streamlit as st
 
-st.title(":material/monitor_heart: EMG Kapter-TEC")
+st.title(":material/monitor_heart: EMG-Meras puntas de la flecha")
 st.caption("Sistema wearable de sEMG — abducción de cadera · BI2005B · Tecnológico de Monterrey")
 
 st.markdown(

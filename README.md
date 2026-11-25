@@ -1,4 +1,4 @@
-# EMG Kapter-TEC 💪
+# EMG-Meras puntas de la flecha 💪
 
 Aplicación para **procesar y visualizar señales de electromiografía de superficie (sEMG)** del sistema wearable
 desarrollado en el Reto Kapter-TEC (BI2005B *Aplicación de bioinstrumentación y tecnologías biomédicas*,

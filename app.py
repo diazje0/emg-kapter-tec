@@ -1,10 +1,10 @@
-"""EMG Kapter-TEC — aplicación de procesamiento y visualización (Streamlit).
+"""EMG-Meras puntas de la flecha — aplicación de procesamiento y visualización (Streamlit).
 
 Ejecutar:  streamlit run app.py
 """
 import streamlit as st
 
-st.set_page_config(page_title="EMG Kapter-TEC", page_icon=":material/monitor_heart:", layout="wide")
+st.set_page_config(page_title="EMG-Meras puntas de la flecha", page_icon=":material/monitor_heart:", layout="wide")
 
 paginas = st.navigation([
     st.Page("paginas/inicio.py", title="Inicio", icon=":material/home:", default=True),
