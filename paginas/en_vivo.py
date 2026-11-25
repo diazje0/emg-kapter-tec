@@ -8,6 +8,9 @@ import streamlit as st
 from emg.envivo import Receptor, ReceptorSerie, Simulador
 
 TOMAS = ["1_reposo", "1_contracciones", "ejercicio", "2_reposo", "2_contracciones", "3_reposo", "3_contracciones"]
+DUR_DEF = {"reposo": 30, "contracciones": 26, "ejercicio": 60}   # segundos desde el primer pitido
+PITIDOS_CONTR = (0, 9, 18)                                       # pitidos sugeridos en las contracciones (s)
+tipo = lambda toma: toma.split("_", 1)[-1] if "_" in toma else toma
 CARPETA = Path(__file__).resolve().parent.parent / "registros"
 
 st.title(":material/sensors: Señal en vivo (ESP32)")
@@ -33,6 +36,9 @@ with st.sidebar:
             puertos = []
         puerto = st.selectbox("Puerto", puertos or ["(no se encontraron puertos)"])
         baudios = st.selectbox("Velocidad (baudios)", [921600, 115200], help="Debe coincidir con BAUDIOS del firmware (921600). En la C3 con USB nativo no importa.")
+    with st.expander("Duración de las tomas", icon=":material/timer:"):
+        st.caption("Segundos que se graban **a partir del primer pitido** (además se guardan 2 s previos).")
+        dur = {k: st.number_input(f"{k.capitalize()} (s)", 5, 180, v, 1, key=f"dur_{k}") for k, v in DUR_DEF.items()}
     seg_vista = st.slider("Segundos en pantalla", 2, 10, 5)
     escala = st.slider("Escala vertical (± mV en el ADC)", 100, 1600, 800, 50)
 
@@ -64,30 +70,43 @@ if rx.error:
 if "_siguiente" in st.session_state:                 # después de guardar, pasa a la siguiente toma
     st.session_state["toma"] = st.session_state.pop("_siguiente")
 with st.expander("Cómo grabar una sesión", icon=":material/help:"):
-    st.markdown("1. **Conectar** (barra izquierda).  \n2. Elige la **toma**.  \n3. **Grabar**.  \n"
-                "4. En las contracciones, presiona **Pitido** cuando quieras que la persona contraiga.  \n"
-                "5. **Detener y guardar**: se pasa sola a la siguiente toma.  \n"
+    st.markdown("1. **Conectar** (barra izquierda) y elige la **toma**.  \n"
+                "2. **Grabar**: la app queda *lista*, pero todavía no guarda nada.  \n"
+                "3. **Pitido**: suena el buzzer y **ahí empieza la grabación** (con 2 s previos).  \n"
+                "4. En las contracciones, presiona **Pitido** otra vez en cada contracción (sugerido a los 9 y 18 s).  \n"
+                "5. Al cumplirse la duración, **se detiene y guarda sola** y pasa a la siguiente toma.  \n"
                 "6. Al final, ve a **Procesamiento** y sube los 7 archivos de la carpeta `registros/`.")
 toma = st.selectbox("¿Qué toma vas a grabar?", TOMAS, key="toma")
+def guardar(toma_g, filas):
+    if not filas:
+        return
+    CARPETA.mkdir(exist_ok=True)
+    csv = Receptor.a_csv(filas)
+    (CARPETA / f"{toma_g}_{datetime.now():%Y%m%d_%H%M%S}.csv").write_text(csv)
+    st.session_state["ultima"] = (f"{toma_g}.csv", csv, len(filas))
+    i = TOMAS.index(toma_g)
+    if i + 1 < len(TOMAS):
+        st.session_state["_siguiente"] = TOMAS[i + 1]
+
+
+ocupado = rx.armado or rx.grabando
 b1, b2, b3, b4 = st.columns(4)
-if b1.button("Pitido / marca de inicio", icon=":material/notifications_active:", use_container_width=True, help="La ESP32 suena y guarda la marca para calcular la latencia."):
+if b1.button("Pitido" + (" · iniciar" if rx.armado else ""), icon=":material/notifications_active:", type="primary" if rx.armado else "secondary",
+             use_container_width=True, help="La ESP32 suena y guarda la marca (latencia). Si la toma está lista, aquí empieza a grabar."):
     rx.marcar()
-if b2.button("Grabar", icon=":material/radio_button_checked:", disabled=rx.grabando, use_container_width=True):
-    rx.iniciar_grabacion()
+if b2.button("Grabar", icon=":material/radio_button_checked:", disabled=ocupado, use_container_width=True,
+             help="Deja la toma lista: empieza a grabar con el siguiente pitido y se detiene sola al cumplir su duración."):
+    rx.armar(toma, dur[tipo(toma)])
+    st.session_state.pop("ultima", None)
     st.rerun()
-if b3.button("Detener y guardar", icon=":material/save:", disabled=not rx.grabando, use_container_width=True):
+if b3.button("Cancelar" if rx.armado else "Detener y guardar", icon=":material/close:" if rx.armado else ":material/save:",
+             disabled=not ocupado, use_container_width=True, help="Detiene antes de tiempo y guarda lo grabado (o cancela si aún no empieza)."):
+    era_armado, toma_g = rx.armado, rx.toma or toma
     filas = rx.detener_grabacion()
-    if filas:
-        CARPETA.mkdir(exist_ok=True)
-        nombre = f"{toma}.csv"
-        csv = Receptor.a_csv(filas)
-        (CARPETA / f"{toma}_{datetime.now():%Y%m%d_%H%M%S}.csv").write_text(csv)
-        st.session_state["ultima"] = (nombre, csv, len(filas))
-        i = TOMAS.index(toma)
-        if i + 1 < len(TOMAS):
-            st.session_state["_siguiente"] = TOMAS[i + 1]
+    if not era_armado:
+        guardar(toma_g, filas)
     st.rerun()
-if b4.button("Reiniciar pantalla", icon=":material/restart_alt:", disabled=rx.grabando, use_container_width=True,
+if b4.button("Reiniciar pantalla", icon=":material/restart_alt:", disabled=ocupado, use_container_width=True,
              help="Borra la señal mostrada y el aviso de la última toma. No cierra la conexión."):
     rx.limpiar()
     st.session_state.pop("ultima", None)
@@ -102,10 +121,28 @@ if "ultima" in st.session_state:
 # ------------------------------------------------------------------ gráfica en vivo
 @st.fragment(run_every=0.5)
 def vista():
+    if rx.completa:                                   # se cumplió la duración: guardar y pasar a la siguiente toma
+        toma_g = rx.toma
+        guardar(toma_g, rx.detener_grabacion())
+        st.rerun()
+    if st.session_state.get("_estado_botones") != (rx.armado, rx.grabando):   # actualizar botones al empezar a grabar
+        st.session_state["_estado_botones"] = (rx.armado, rx.grabando)
+        st.rerun()
     d = rx.ventana()
-    estado = ":red[:material/fiber_manual_record: GRABANDO]" if rx.grabando else (":blue[:material/wifi_tethering: recibiendo]" if rx.activo else ":gray[:material/link_off: desconectado]")
-    n_grab = len(rx.grabacion) if rx.grabando else 0
-    st.markdown(f"**{estado}** · muestras recibidas: {rx.muestras:,}" + (f" · grabadas: {n_grab:,}" if rx.grabando else ""))
+    if rx.grabando:
+        seg, total = rx.transcurrido(), rx.duracion
+        st.progress(min(seg / total, 1.0), text=f":red[:material/fiber_manual_record:] **GRABANDO {rx.toma}** · {seg:4.1f} s de {total} s")
+        if tipo(rx.toma) == "contracciones":
+            n_pit = int(sum(f[3] for f in rx.grabacion))
+            if n_pit < len(PITIDOS_CONTR):
+                falta = PITIDOS_CONTR[n_pit] - seg
+                st.markdown(f"#### Pitido {n_pit + 1} de 3 " + ("· **¡AHORA!**" if falta <= 0.5 else f"en **{falta:.0f} s**"))
+            else:
+                st.markdown("#### 3 pitidos dados · esperar a que termine")
+    elif rx.armado:
+        st.info(f"**{rx.toma} lista.** Presiona **Pitido** para empezar a grabar ({rx.duracion} s).", icon=":material/hourglass_top:")
+    estado = ":blue[:material/wifi_tethering: recibiendo]" if rx.activo else ":gray[:material/link_off: desconectado]"
+    st.markdown(f"**{estado}** · muestras recibidas: {rx.muestras:,}")
     if len(d) < 10:
         st.caption("Esperando datos…")
         return

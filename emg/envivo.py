@@ -22,6 +22,12 @@ class Receptor:
         self.buf = deque(maxlen=int(segundos_buffer * fs_esperada))
         self.grabacion = []
         self.grabando = False
+        self.armado = False          # "Grabar" presionado: espera el primer pitido para empezar
+        self.completa = False        # la toma llegó a su duración y se detuvo sola
+        self.duracion = None         # segundos a grabar desde el pitido (None = sin límite)
+        self.pre = 2.0               # segundos que se conservan antes del pitido
+        self.t_inicio = None
+        self.toma = None
         self.activo = False
         self.error = None
         self.muestras = 0
@@ -44,8 +50,16 @@ class Receptor:
         with self._lock:
             self.buf.append(fila)
             self.muestras += 1
-            if self.grabando:
+            if self.armado and fila[3] == 1:
+                # primer pitido: arranca la grabación conservando los segundos previos
+                n_pre = int(self.pre * 2000) + 1
+                self.grabacion = list(self.buf)[-n_pre:]
+                self.t_inicio = fila[0]
+                self.armado, self.grabando = False, True
+            elif self.grabando:
                 self.grabacion.append(fila)
+                if self.duracion and (fila[0] - self.t_inicio) >= self.duracion * 1e6:
+                    self.grabando, self.completa = False, True
 
     def limpiar(self):
         """Borra lo que se ve en pantalla (no afecta una grabación en curso)."""
@@ -57,14 +71,28 @@ class Receptor:
         with self._lock:
             return np.array(self.buf) if self.buf else np.empty((0, 4))
 
-    def iniciar_grabacion(self):
+    def armar(self, toma, duracion, pre=2.0):
+        """Deja lista la grabación: empieza sola con el siguiente pitido y se detiene a los `duracion` s."""
         with self._lock:
-            self.grabacion = []
+            self.grabacion, self.toma, self.duracion, self.pre = [], toma, duracion, pre
+            self.t_inicio, self.completa, self.grabando, self.armado = None, False, False, True
+
+    def iniciar_grabacion(self):
+        """Grabación inmediata, sin esperar pitido ni límite de tiempo."""
+        with self._lock:
+            self.grabacion, self.duracion, self.completa, self.armado = [], None, False, False
+            self.t_inicio = self.buf[-1][0] if self.buf else 0
             self.grabando = True
+
+    def transcurrido(self):
+        with self._lock:
+            if not (self.grabando or self.completa) or not self.grabacion or self.t_inicio is None:
+                return 0.0
+            return (self.grabacion[-1][0] - self.t_inicio) / 1e6
 
     def detener_grabacion(self):
         with self._lock:
-            self.grabando = False
+            self.grabando = self.armado = self.completa = False
             return list(self.grabacion)
 
     @staticmethod
