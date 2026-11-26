@@ -39,7 +39,7 @@ with st.sidebar:
     with st.expander("Duración de las tomas", icon=":material/timer:"):
         st.caption("Segundos que se graban **a partir del primer pitido** (además se guardan 2 s previos).")
         dur = {k: st.number_input(f"{k.capitalize()} (s)", 5, 180, v, 1, key=f"dur_{k}") for k, v in DUR_DEF.items()}
-    seg_vista = st.slider("Segundos en pantalla", 2, 10, 5)
+    seg_vista = st.slider("Segundos en pantalla", 2, 10, 3)
     escala = st.slider("Escala vertical (± mV en el ADC)", 100, 1600, 800, 50)
 
     c1, c2 = st.columns(2)
@@ -119,7 +119,7 @@ if "ultima" in st.session_state:
 
 
 # ------------------------------------------------------------------ gráfica en vivo
-@st.fragment(run_every=0.5)
+@st.fragment(run_every=0.3)
 def vista():
     if rx.completa:                                   # se cumplió la duración: guardar y pasar a la siguiente toma
         toma_g = rx.toma
@@ -149,7 +149,7 @@ def vista():
     t = (d[:, 0] - d[-1, 0]) / 1e6
     sel = t >= -seg_vista
     t, d = t[sel], d[sel]
-    paso = max(1, len(t) // 4000)
+    paso = max(1, len(t) // 1500)          # menos puntos = gráfica más rápida
     fs = 1 / np.median(np.diff(t)) if len(t) > 2 else 0
     offset = np.median(d[:, 1:3], axis=0)          # offset real de cada canal
     fig = go.Figure()

@@ -48,6 +48,15 @@ class Receptor:
 
     def _agregar(self, fila):
         with self._lock:
+            self._agregar_sin_lock(fila)
+
+    def _agregar_varios(self, filas):
+        with self._lock:
+            for f in filas:
+                self._agregar_sin_lock(f)
+
+    def _agregar_sin_lock(self, fila):
+        if True:
             self.buf.append(fila)
             self.muestras += 1
             if self.armado and fila[3] == 1:
@@ -120,20 +129,30 @@ class ReceptorSerie(Receptor):
             self.ser.reset_input_buffer()
             self.ser.write(b"S")
             ultimo_s = time.time()
+            resto = b""
             while self.activo:
                 if self.muestras == 0 and time.time() - ultimo_s > 2:
                     self.ser.write(b"S")
                     ultimo_s = time.time()
-                linea = self.ser.readline().decode("ascii", errors="ignore").strip()
-                if not linea or linea.startswith("t_us") or linea.startswith("#"):
+                # Leer en bloques (todo lo que haya llegado) en lugar de línea por línea:
+                # evita que se acumule retraso cuando la computadora está ocupada dibujando.
+                n = self.ser.in_waiting
+                datos = self.ser.read(n if n else 1)
+                if not datos:
                     continue
-                partes = linea.split(",")
-                if len(partes) != 4:
-                    continue
-                try:
-                    self._agregar(tuple(float(v) for v in partes))
-                except ValueError:
-                    continue
+                lineas = (resto + datos).split(b"\n")
+                resto = lineas.pop()
+                filas = []
+                for linea in lineas:
+                    partes = linea.strip().split(b",")
+                    if len(partes) != 4 or partes[0][:1] in (b"t", b"#"):
+                        continue
+                    try:
+                        filas.append(tuple(float(v) for v in partes))
+                    except ValueError:
+                        continue
+                if filas:
+                    self._agregar_varios(filas)
         except Exception as e:  # puerto ocupado, desconectado, etc.
             self.error = str(e)
             self.activo = False
